@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+ <meta charset="UTF-8" />
+ <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+ <title>Heart Disease Detection - Welcome</title>
+  <style>
+    body {
+ font-family: Arial, sans-serif;
+ margin: 0;
+ padding: 0;
+ background: linear-gradient(to right, #e3f2fd, #bbdefb);
+ display: flex;
+ justify-content: center;
+ align-items: center;
+ min-height: 100vh;
+ flex-direction: column;
+ overflow-x: hidden;
+}
+.page {
+ width: 90%;
+ max-width: 500px;
+ background: white;
+ padding: 20px;
+ margin: 20px;
+ border-radius: 12px;
+ box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+ transition: transform 0.5s ease-in-out, opacity 0.5s;
+}
+.page.hidden {
+ display: none;
+}
+button {
+ padding: 10px 20px;
+ background: #2196f3;
+ color: white;
+ border: none;
+ border-radius: 8px;
+ font-size: 16px;
+ cursor: pointer;
+ margin: 10px 0;
+ transition: background 0.3s ease;
+}
+button:hover {
+ background: #1976d2;
+}
+input, select {
+ width: 100%;
+ padding: 10px;
+ margin: 10px 0;
+ border-radius: 5px;
+ border: 1px solid #ccc;
+}
+video {
+ width: 100%;
+ border-radius: 10px;
+ margin-top: 10px;
+}
+canvas.hidden {
+ display: none;
+}
+.animate-fade-in {
+ animation: fadeIn 1.5s ease-in-out forwards;
+}
+@keyframes fadeIn {
+ from { opacity: 0; transform: translateY(-30px); }
+ to { opacity: 1; transform: translateY(0); }
+}
+  </style> 
+</head>
+<body onload="speakWelcome(); playMusic();">
+ <div class="page welcome-page animate-fade-in" id="welcomePage">
+ <h1>Welcome to Heart Health Checkup</h1>
+ <button onclick="playPop(); nextPage('detailsPage')">Start</button>
+ </div>
+ <div class="page hidden" id="detailsPage">
+ <h2>User Details</h2>
+ <input type="text" placeholder="Name" />
+ <input type="number" placeholder="Age" />
+ <input type="number" placeholder="Height (cm)" />
+ <input type="number" placeholder="Weight (kg)" />
+ <button onclick="playPop(); nextPage('healthPage')">Next</button>
+ </div>
+ <div class="page hidden" id="healthPage">
+ <h2>Health Input</h2>
+ <input type="number" placeholder="Resting Heart Rate" />
+ <input type="number" placeholder="Max Heart Rate Achieved" />
+ <input type="number" placeholder="Blood Pressure" />
+ <input type="number" placeholder="Cholesterol Level" />
+ <select>
+ <option value="0">Non-Smoker</option>
+ <option value="1">Current Smoker</option>
+ <option value="2">Ex-Smoker</option>
+ </select>
+ <select>
+ <option value="0">No Family History</option>
+ <option value="1">Yes, Has Family History</option>
+ </select>
+ <button onclick="playPop(); nextPage('voicePage')">Next</button>
+ </div>
+ <div class="page hidden" id="voicePage">
+ <h2>Voice Check</h2>
+ <p>Please say: <strong>"Hi, I am using this app for checking my heart strength"</strong></p>
+ <button onclick="startVoiceAnalysis()">Analyze Voice</button>
+ <p id="voiceResult"></p>
+ <button onclick="nextPage('eyePage'); startCamera();">Next</button>
+ </div>
+ <div class="page hidden" id="eyePage">
+ <h2>Eye Check</h2>
+ <video id="video" autoplay></video><br />
+ <button onclick="captureEye()">Capture Eye</button>
+ <canvas id="canvas" width="320" height="240" class="hidden"></canvas>
+ <p id="eyeResult"></p>
+ <button onclick="nextPage('resultPage')">Next</button>
+ </div>
+ <div class="page hidden" id="resultPage">
+ <h2>Final Diagnosis</h2>
+ <p id="finalResult">Your result will appear here.</p>
+ </div>
+ <audio id="popSound" src="https://actions.google.com/sounds/v1/cartoon/pop.ogg" 
+preload="auto"></audio>
+ <audio id="backgroundMusic" src="https://www.bensound.com/bensound-music/bensoundsunny.mp3" loop></audio>
+ 
+ <script>
+    let voiceScore = 0;
+let eyeScore = 0;
+let stream;
+let analyzing = false; // Flag to check if voice analysis is ongoing
+function nextPage(id) {
+ document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
+ document.getElementById(id).classList.remove("hidden");
+}
+function playPop() {
+ document.getElementById("popSound").play();
+}
+function speakWelcome() {
+ const message = new SpeechSynthesisUtterance("Welcome to the Heart Health Checkup App");
+ message.pitch = 1.2;
+ message.rate = 1;
+ message.volume = 1;
+ speechSynthesis.speak(message);
+}
+function playMusic() {
+ const music = document.getElementById("backgroundMusic");
+ music.volume = 0.2;
+ music.play().catch(e => {
+ console.log("Autoplay blocked. Music will play after user interaction.");
+ });
+}
+// VOICE PITCH
+function startVoiceAnalysis() {
+ if (analyzing) return; // Prevent re-entrant analysis
+ analyzing = true; // Set flag to true, indicating analysis is ongoing
+ const music = document.getElementById("backgroundMusic");
+ music.pause(); // Pause background music before recording
+ navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+ const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+ const analyser = audioContext.createAnalyser();
+ const mic = audioContext.createMediaStreamSource(stream);
+ analyser.fftSize = 2048;
+ mic.connect(analyser);
+ const buffer = new Float32Array(analyser.fftSize);
+ function autoCorrelate(buf, sampleRate) {
+ let SIZE = buf.length;
+ let rms = 0;
+ for (let i = 0; i < SIZE; i++) rms += buf[i] * buf[i];
+ rms = Math.sqrt(rms / SIZE);
+ if (rms < 0.01) return -1;
+ let r1 = 0, r2 = SIZE - 1, threshold = 0.2;
+ for (let i = 0; i < SIZE / 2; i++) {
+ if (Math.abs(buf[i]) < threshold) {
+ r1 = i;
+ break;
+ }
+ }
+ for (let i = 1; i < SIZE / 2; i++) {
+ if (Math.abs(buf[SIZE - i]) < threshold) {
+ r2 = SIZE - i;
+ break;
+ }
+ }
+ buf = buf.slice(r1, r2);
+ SIZE = buf.length;
+ const c = new Array(SIZE).fill(0);
+ for (let i = 0; i < SIZE; i++) {
+ for (let j = 0; j < SIZE - i; j++) {
+ c[i] = c[i] + buf[j] * buf[j + i];
+ }
+ }
+ let d = 0;
+ while (c[d] > c[d + 1]) d++;
+ let maxval = -1, maxpos = -1;
+ for (let i = d; i < SIZE; i++) {
+ if (c[i] > maxval) {
+ maxval = c[i];
+ maxpos = i;
+ }
+ }
+ let T0 = maxpos;
+ return sampleRate / T0;
+ }
+ let attempts = 0;
+ let pitchSum = 0;
+ function analyze() {
+ analyser.getFloatTimeDomainData(buffer);
+ let pitch = autoCorrelate(buffer, audioContext.sampleRate);
+ if (pitch !== -1 && pitch < 1000) {
+ pitchSum += pitch;
+ attempts++;
+ }
+ if (attempts < 5) {
+ requestAnimationFrame(analyze);
+ } else {
+ let avgPitch = pitchSum / attempts;
+ let resultText = "";
+ if (avgPitch < 120) {
+ resultText = "⚠️ Low Pitch: Possible Heart Disease (Pitch: " + Math.round(avgPitch) + " Hz)";
+ voiceScore = 0;
+ } else if (avgPitch < 180) {
+ resultText = "✅ Medium Pitch: Likely Normal (Pitch: " + Math.round(avgPitch) + " Hz)";
+ voiceScore = 0.5;
+ } else {
+ resultText = "✅ High Pitch: Healthy Heart (Pitch: " + Math.round(avgPitch) + " Hz)";
+ voiceScore = 1;
+ }
+ document.getElementById("voiceResult").textContent = resultText;
+ calculateFinalResult();
+ analyzing = false; // Reset flag after analysis is complete
+ stream.getTracks().forEach(track => track.stop()); // Stop the microphone stream after analysis
+ }
+ }
+ analyze();
+ }).catch(() => {
+ alert("Microphone access denied.");
+ analyzing = false; // Reset flag in case of error
+ });
+}
+function startCamera() {
+ const video = document.getElementById("video");
+ if (!stream) {
+ navigator.mediaDevices.getUserMedia({ video: true })
+ .then(s => {
+ stream = s;
+ video.srcObject = stream;
+ })
+ .catch(() => {
+ alert("Camera access denied.");
+ });
+ }
+}
+function captureEye() {
+ const canvas = document.getElementById("canvas");
+ const ctx = canvas.getContext("2d");
+ canvas.classList.remove("hidden");
+ ctx.drawImage(document.getElementById("video"), 0, 0, canvas.width, canvas.height);
+ const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+ let brightness = 0;
+ for (let i = 0; i < imageData.data.length; i += 4) {
+ brightness += (imageData.data[i] + imageData.data[i + 1] + imageData.data[i + 2]) / 3;
+ }
+ let avgBrightness = brightness / (imageData.data.length / 4);
+ let result = "";
+ if (avgBrightness < 100) {
+ result = "⚠️ Eye Weakness Detected";
+ eyeScore = 0;
+ } else if (avgBrightness < 160) {
+ result = "✅ Eye Looks Average";
+ eyeScore = 0.5;
+ } else {
+ result = "✅ Eye Looks Healthy";
+ eyeScore = 1;
+ }
+ document.getElementById("eyeResult").textContent = result;
+ calculateFinalResult();
+}
+function calculateFinalResult() {
+ let combinedScore = (voiceScore + eyeScore) / 2;
+ let diagnosis = "";
+ let heartDiseaseType = "";
+ let accuracy = Math.round(combinedScore * 100);
+ if (combinedScore < 0.4) {
+ diagnosis = "❌ Heart Disease Detected";
+ heartDiseaseType = "Potential signs of Coronary Artery Disease (CAD)";
+ } else if (combinedScore < 0.7) {
+ diagnosis = "⚠️ Borderline Heart Health";
+ heartDiseaseType = "Possible risk of Hypertension or Mild Heart Valve Issues";
+ } else {
+ diagnosis = "✅ Heart is Healthy";
+ heartDiseaseType = "No significant heart issues detected";
+ }
+ document.getElementById("finalResult").innerHTML =
+ `${diagnosis}<br>🔍 Accuracy: ${accuracy}% based on voice & eye input.<br>Heart Disease Type: 
+${heartDiseaseType}`;
+}
+ </script>
+</body>
+</html>
